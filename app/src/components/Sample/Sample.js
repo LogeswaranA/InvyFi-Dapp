@@ -8,15 +8,36 @@ function Sample() {
   const { provider, account, invoice, plugin, cgo, usplus } = useContext(EthereumContext);
   console.log("invoice:::", invoice)
 
-  const registerAsset = async (event) => {
+  const registerAssetUSPLUS = async (event) => {
     event.preventDefault();
     setSubmitting(true);
     let _key = "USPLUS";
     let _address = "0x098db963654868ab3df79be0974cf97a6e8054bd";
     let response1 = await executeTransaction(invoice, provider, 'updateKeymappings', [_key, _address], 0);
-    log("registerAsset", "hash", response1.txHash)
+    log("registerAssetUSPLUS", "hash", response1.txHash)
     setSubmitting(false);
   }
+
+  const registerAssetPLI = async (event) => {
+    event.preventDefault();
+    setSubmitting(true);
+    let _key = "PLI";
+    let _address = "0xb3db178db835b4dfcb4149b2161644058393267d";
+    let response1 = await executeTransaction(invoice, provider, 'updateKeymappings', [_key, _address], 0);
+    log("registerAssetPLI", "hash", response1.txHash)
+    setSubmitting(false);
+  }
+
+  const registerAssetCGO = async (event) => {
+    event.preventDefault();
+    setSubmitting(true);
+    let _key = "CGO";
+    let _address = "0xc58dd5c23a4dca5232557e36fd1a57896ffd40e4";
+    let response1 = await executeTransaction(invoice, provider, 'updateKeymappings', [_key, _address], 0);
+    log("registerAssetCGO", "hash", response1.txHash)
+    setSubmitting(false);
+  }
+
 
   const whiteList = async (event) => {
     event.preventDefault();
@@ -97,13 +118,23 @@ function Sample() {
     setSubmitting(false);
   }
   
-  
-
   return <div className="Container">
     <div>
-      <h1>Register Assets</h1><br></br>
-      <form onSubmit={registerAsset}>
-        <button type="submit" disabled={submitting}>{submitting ? 'Registering..' : 'Register Asset'}</button>
+      <h1>Register Assets USPLUS</h1><br></br>
+      <form onSubmit={registerAssetUSPLUS}>
+        <button type="submit" disabled={submitting}>{submitting ? 'Registering..' : 'Register Asset USPLUS'}</button>
+      </form>
+    </div>
+    <div>
+      <h1>Register Assets PLI</h1><br></br>
+      <form onSubmit={registerAssetPLI}>
+        <button type="submit" disabled={submitting}>{submitting ? 'Registering..' : 'Register Asset PLI'}</button>
+      </form>
+    </div>
+    <div>
+      <h1>Register Assets CGO</h1><br></br>
+      <form onSubmit={registerAssetCGO}>
+        <button type="submit" disabled={submitting}>{submitting ? 'Registering..' : 'Register Asset CGO'}</button>
       </form>
     </div>
     <div>

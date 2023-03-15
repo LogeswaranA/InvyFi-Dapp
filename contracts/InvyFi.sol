@@ -251,23 +251,20 @@ contract InvyFi is PluginClient, ReentrancyGuard, Pausable {
     function acceptOrDenyLoanOffer(
         uint256 _loanReqId,
         State state
-    ) public whenNotPaused {
+    ) public payable whenNotPaused {
+        Loan memory l = loanDetails[_loanReqId];
         require(
-            msg.sender == loanDetails[_loanReqId].borrower,
+            msg.sender == l.borrower,
             "Only Borrower can accept or Deny the offer"
-        );
-        require(
-            loanDetails[_loanReqId].state == State(1),
-            "Only the offered loan can be accepted or denied"
         );
         //Set the loan
         loanDetails[_loanReqId].state = State(state);
 
         if (state == State.ACCEPTED) {
             transferFundstoBorrowerOrLender(
-                loanDetails[_loanReqId].loanAcquired,
-                loanDetails[_loanReqId].loanRequestedIn,
-                loanDetails[_loanReqId].borrower
+                l.loanAcquired,
+                l.loanRequestedIn,
+                l.borrower
             );
             emit LoanAcceptStatus(msg.sender, "Accepted");
         }
@@ -304,10 +301,10 @@ contract InvyFi is PluginClient, ReentrancyGuard, Pausable {
             msg.sender == loanDetails[_loanReqId].borrower,
             "Only Borrower can pay back"
         );
-        require(
-            loanDetails[_loanReqId].state == State(2),
-            "Only the accepted loan can pay back"
-        );
+        // require(
+        //     loanDetails[_loanReqId].state == State.ACCEPTED,
+        //     "Only the accepted loan can pay back"
+        // );
         loanDetails[_loanReqId].currentPrincipal = loanDetails[_loanReqId]
             .currentPrincipal
             .sub(_amount);
@@ -320,7 +317,7 @@ contract InvyFi is PluginClient, ReentrancyGuard, Pausable {
     }
 
      //function for claim the loan amount by issuer
-    function claimLoan(uint256 _lendingId) public whenNotPaused {
+    function claimLoan(uint256 _lendingId) public payable whenNotPaused {
         Lending memory l = lendingDetails[_lendingId];
         require(
             msg.sender == loanDetails[l.loanReqId].lender,
@@ -330,10 +327,10 @@ contract InvyFi is PluginClient, ReentrancyGuard, Pausable {
             lendingDetails[_lendingId].isLoanClaimedBack == false,
             "Loan already claimed"
         );
-        require(
-            loanDetails[l.loanReqId].state == State(3),
-            "Only the loan can be paid back can be claimed"
-        );
+        // require(
+        //     loanDetails[l.loanReqId].state == State.PAYBACK,
+        //     "Only the loan paid back can be claimed"
+        // );
         //Set the loan
         lendingDetails[_lendingId].state = State(4);
         lendingDetails[_lendingId].isLoanClaimedBack = true;
