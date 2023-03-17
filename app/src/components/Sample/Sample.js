@@ -89,9 +89,8 @@ function Sample() {
   const AcceptOrDenyLoanOffer = async (event) => {
     event.preventDefault();
     setSubmitting(true);
-    let _state = 2;   //2 Accepted, 5 DENIED
     let _loanReqId = 1;
-    let response0 = await executeTransaction(invoice, provider, 'acceptOrDenyLoanOffer', [_loanReqId, _state], 0);
+    let response0 = await executeTransaction(invoice, provider, 'acceptOffer', [_loanReqId], 0);
     log("AcceptOrDenyLoanOffer", "hash", response0)
     setSubmitting(false);
   }
