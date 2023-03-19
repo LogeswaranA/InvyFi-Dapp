@@ -32,7 +32,7 @@ contract InvyFi is PluginClient, ReentrancyGuard, Pausable {
         USPLUS
     }
 
-    enum State {
+    enum Status {
         INITIATED,
         OFFERED,
         ACCEPTED,
@@ -57,7 +57,7 @@ contract InvyFi is PluginClient, ReentrancyGuard, Pausable {
         address borrower;
         address lender;
         uint256 nftTokenId;
-        State state;
+        Status status;
     }
 
     struct Lending {
@@ -66,7 +66,7 @@ contract InvyFi is PluginClient, ReentrancyGuard, Pausable {
         uint256 lendingAmount;
         uint256 earnings;
         address lender;
-        State state;
+        Status status;
         bool isLoanClaimedBack;
     }
 
@@ -138,7 +138,7 @@ contract InvyFi is PluginClient, ReentrancyGuard, Pausable {
             msg.sender,
             address(0),
             _tokenId,
-            State(0)
+            Status(0)
         );
         loanBorrower[msg.sender].push(loanDetails[requestIds.current()]);
         requestIds.increment();
@@ -168,7 +168,7 @@ contract InvyFi is PluginClient, ReentrancyGuard, Pausable {
         loanDetails[_loanReqId].lender = msg.sender;
 
         //Loan offered
-        loanDetails[_loanReqId].state = State(1);
+        loanDetails[_loanReqId].status = Status(1);
 
         if (_assets == Assets.PLI) {
             transferFundsToContract(_loanAmountOffered, keyMappings["PLI"]);
@@ -214,12 +214,11 @@ contract InvyFi is PluginClient, ReentrancyGuard, Pausable {
             _loanAmountOffered,
             0,
             msg.sender,
-            State(1),
+            Status(1),
             false
         );
         loanIssuer[msg.sender].push(lendingDetails[lendingIds.current()]);
         lendingIds.increment();
-
     }
 
     //internal function to check XRC20 Balance
@@ -248,34 +247,40 @@ contract InvyFi is PluginClient, ReentrancyGuard, Pausable {
     }
 
     //function to accept or deny loan offer
-    function acceptOrDenyLoanOffer(
+    function acceptOrDenyOffer(
         uint256 _loanReqId,
-        State state
+        Status _status
     ) public payable whenNotPaused {
         Loan memory l = loanDetails[_loanReqId];
         require(
             msg.sender == l.borrower,
             "Only Borrower can accept or Deny the offer"
         );
+        require(
+            l.status == Status(1),
+            "Only Offered Loan can be accepted or denied"
+        );
         //Set the loan
-        loanDetails[_loanReqId].state = State(state);
-
-        if (state == State.ACCEPTED) {
+        loanDetails[_loanReqId].status = Status(_status);
+        string memory _flag = "";
+        if (_status == Status.ACCEPTED) {
             transferFundstoBorrowerOrLender(
                 l.loanAcquired,
                 l.loanRequestedIn,
                 l.borrower
             );
-            emit LoanAcceptStatus(msg.sender, "Accepted");
+            _flag = "ACCEPTED";
         }
-        if (state == State.DENIED) {
+        if (_status == Status.DENIED) {
             transferFundstoBorrowerOrLender(
-                loanDetails[_loanReqId].loanAcquired,
-                loanDetails[_loanReqId].loanRequestedIn,
-                loanDetails[_loanReqId].lender
+                l.loanAcquired,
+                l.loanRequestedIn,
+                msg.sender
             );
-            emit LoanAcceptStatus(msg.sender, "Denied");
+            _flag = "DENIED";
         }
+
+        emit LoanAcceptOrDenyStatus(msg.sender, _flag);
     }
 
     //internal function for transferpaymentback to borrower or Lender
@@ -284,39 +289,27 @@ contract InvyFi is PluginClient, ReentrancyGuard, Pausable {
         address _tokenaddress,
         address _recipient
     ) internal {
-        SafeERC20.safeTransferFrom(
-            IERC20(_tokenaddress),
-            address(this),
-            _recipient,
-            _amount
-        );
+        SafeERC20.safeTransfer(IERC20(_tokenaddress), _recipient, _amount);
     }
 
     //function for pay back loan amount
     function loanPayBack(
         uint256 _loanReqId,
-        uint256 _amount
+        uint256 _amount,
+        Status _status
     ) public payable whenNotPaused {
+        Loan memory l = loanDetails[_loanReqId];
+        require(msg.sender == l.borrower, "Only Borrower can pay back");
         require(
-            msg.sender == loanDetails[_loanReqId].borrower,
-            "Only Borrower can pay back"
+            l.status == Status(2),
+            "Only Accepted Loan can pay back"
         );
-        // require(
-        //     loanDetails[_loanReqId].state == State.ACCEPTED,
-        //     "Only the accepted loan can pay back"
-        // );
-        loanDetails[_loanReqId].currentPrincipal = loanDetails[_loanReqId]
-            .currentPrincipal
-            .sub(_amount);
-        loanDetails[_loanReqId].state = State(3);
-        transferFundsToContract(
-            _amount,
-            loanDetails[_loanReqId].loanRequestedIn
-        );
+        loanDetails[_loanReqId].status = Status(_status);
+        transferFundsToContract(_amount, l.loanRequestedIn);
         emit LoanPaidBack(msg.sender, _loanReqId, _amount);
     }
 
-     //function for claim the loan amount by issuer
+    //function for claim the loan amount by issuer
     function claimLoan(uint256 _lendingId) public payable whenNotPaused {
         Lending memory l = lendingDetails[_lendingId];
         require(
@@ -327,12 +320,12 @@ contract InvyFi is PluginClient, ReentrancyGuard, Pausable {
             lendingDetails[_lendingId].isLoanClaimedBack == false,
             "Loan already claimed"
         );
-        // require(
-        //     loanDetails[l.loanReqId].state == State.PAYBACK,
-        //     "Only the loan paid back can be claimed"
-        // );
-        //Set the loan
-        lendingDetails[_lendingId].state = State(4);
+        require(
+            loanDetails[l.loanReqId].status == Status(3),
+            "Only Paid Back Loan can be claimed by Lender"
+        );
+
+        lendingDetails[_lendingId].status = Status(4);
         lendingDetails[_lendingId].isLoanClaimedBack = true;
         transferFundstoBorrowerOrLender(
             lendingDetails[_lendingId].lendingAmount,
@@ -350,7 +343,7 @@ contract InvyFi is PluginClient, ReentrancyGuard, Pausable {
     event KeyAddressAdded(string _symbol, address _destination);
     event LoanRequested(address _borrower, uint256 _amount, uint256 _reqid);
     event LendingOffered(address _lender, uint256 _amount, uint256 _lendingid);
-    event LoanAcceptStatus(address _borrower, string _status);
+    event LoanAcceptOrDenyStatus(address _borrower, string _status);
     event LoanPaidBack(address _borrower, uint256 _loanreqid, uint256 _amount);
     event LoanClaimed(address _lender, uint256 _loanreqid, uint256 _amount);
     event WhiteListed(address _to, bool _flag);

@@ -90,7 +90,8 @@ function Sample() {
     event.preventDefault();
     setSubmitting(true);
     let _loanReqId = 1;
-    let response0 = await executeTransaction(invoice, provider, 'acceptOffer', [_loanReqId], 0);
+    let _status = 2; // 2 ACCEPTED, 3 DENIED
+    let response0 = await executeTransaction(invoice, provider, 'acceptOrDenyOffer', [_loanReqId, _status], 0);
     log("AcceptOrDenyLoanOffer", "hash", response0)
     setSubmitting(false);
   }
@@ -98,11 +99,12 @@ function Sample() {
   const LoanPayBack = async (event) => {
     event.preventDefault();
     setSubmitting(true);
-    let _amount = await convertPriceToEth("1000", "ABC");  //2 Accepted, 5 DENIED
+    let _amount = await convertPriceToEth("100", "ABC");  //2 Accepted, 5 DENIED
     let _loanReqId = 1;
+    let _status = 3; // 3 PAYBACK
     let response0 = await executeTransaction(plugin, provider, 'approve', [invoice.address, _amount], 0);
-    if(response0.txHash){
-      let response1 = await executeTransaction(invoice, provider, 'loanPayBack', [_loanReqId, _amount], 0);
+    if (response0.txHash) {
+      let response1 = await executeTransaction(invoice, provider, 'loanPayBack', [_loanReqId, _amount, _status], 0);
       log("LoanPayBack", "hash", response1)
     }
     setSubmitting(false);
@@ -116,7 +118,7 @@ function Sample() {
     log("AcceptOrDenyLoanOffer", "hash", response0)
     setSubmitting(false);
   }
-  
+
   return <div className="Container">
     <div>
       <h1>Register Assets USPLUS</h1><br></br>
