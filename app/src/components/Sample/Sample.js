@@ -65,8 +65,7 @@ function Sample() {
   const whiteList = async (event) => {
     event.preventDefault();
     setSubmitting(true);
-    // let _address = "0xc63b25b52efd1816ebfb25b4443c131df520d735";
-    let _address ="0x4e1945cec2539a9be460ab0aa7bdc1eadebde75e";
+    let _address = "0xced4fece7514f0e968ed46d0540654f22e0b519c";
     let response1 = await executeTransaction(
       invoice,
       provider,
@@ -75,6 +74,16 @@ function Sample() {
       0
     );
     log("whiteList", "hash", response1.txHash);
+
+    // let _address1 = "0x4e1945cec2539a9be460ab0aa7bdc1eadebde75e";
+    // let response2 = await executeTransaction(
+    //   invoice,
+    //   provider,
+    //   "setWhiteList",
+    //   [_address1, true],
+    //   0
+    // );
+    // log("whiteList", "hash", response2.txHash);
     setSubmitting(false);
   };
 
@@ -85,7 +94,7 @@ function Sample() {
     let _loanEligibility = _invoiceAmount;
     let _loanToAcquire = _invoiceAmount;
     let _loanRequestedIn = "0xb3db178db835b4dfcb4149b2161644058393267d"; //Asset Adress
-    let _tokenId = 1;
+    let _tokenId = 3;
     let response1 = await executeTransaction(
       invoice,
       provider,
@@ -109,7 +118,7 @@ function Sample() {
     let _interestRate = 10;
     let _daysToExpire = 90;
     let _assets = 1; //Asset 0 XDC, 1 PLI, 2 CGO, 3 USPLUS
-    let _loanReqId = 2;
+    let _loanReqId = 1;
     let _loanAmountOffered = await convertPriceToEth("100", "ABC");
     let response0 = await executeTransaction(
       plugin,
@@ -143,13 +152,13 @@ function Sample() {
   const AcceptOrDenyLoanOffer = async (event) => {
     event.preventDefault();
     setSubmitting(true);
-    let _loanReqId = 1;
+    let _lendingId = 2;
     let _status = 2; // 2 ACCEPTED, 3 DENIED
     let response0 = await executeTransaction(
       invoice,
       provider,
       "acceptOrDenyOffer",
-      [_loanReqId, _status],
+      [_lendingId, _status],
       0
     );
     log("AcceptOrDenyLoanOffer", "hash", response0);
@@ -161,6 +170,7 @@ function Sample() {
     setSubmitting(true);
     let _amount = await convertPriceToEth("100", "ABC"); //2 Accepted, 5 DENIED
     let _loanReqId = 1;
+    let _lendingId = 2;
     let _status = 3; // 3 PAYBACK
     let response0 = await executeTransaction(
       plugin,
@@ -174,7 +184,7 @@ function Sample() {
         invoice,
         provider,
         "loanPayBack",
-        [_loanReqId, _amount, _status],
+        [_loanReqId, _amount, _status, _lendingId],
         0
       );
       log("LoanPayBack", "hash", response1);
@@ -185,7 +195,7 @@ function Sample() {
   const ClaimLoan = async (event) => {
     event.preventDefault();
     setSubmitting(true);
-    let _lendingId = 1;
+    let _lendingId = 2;
     let response0 = await executeTransaction(
       invoice,
       provider,
@@ -194,6 +204,21 @@ function Sample() {
       0
     );
     log("AcceptOrDenyLoanOffer", "hash", response0);
+    setSubmitting(false);
+  };
+
+  const claimBackSinceLoanNotAccepted = async (event) => {
+    event.preventDefault();
+    setSubmitting(true);
+    let _lendingId = 1;
+    let response0 = await executeTransaction(
+      invoice,
+      provider,
+      "claimBackSinceLoanNotAccepted",
+      [_lendingId],
+      0
+    );
+    log("claimBackSinceLoanNotAccepted", "hash", response0);
     setSubmitting(false);
   };
 
@@ -315,6 +340,16 @@ function Sample() {
         <form onSubmit={transferOwnership}>
           <button type="submit" disabled={submitting}>
             {submitting ? "Transferring.." : "Transfer Ownership"}
+          </button>
+        </form>
+      </div>
+
+      <div>
+        <h1>Claim Loan Since Buyer Not accepted the Loan offer</h1>
+        <br></br>
+        <form onSubmit={claimBackSinceLoanNotAccepted}>
+          <button type="submit" disabled={submitting}>
+            {submitting ? "Claiming.." : "Claim Back"}
           </button>
         </form>
       </div>

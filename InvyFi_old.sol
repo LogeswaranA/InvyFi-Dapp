@@ -40,17 +40,22 @@ contract InvyFi is PluginClient, ReentrancyGuard, Pausable {
         CLAIMED,
         DENIED,
         CANCELLED,
-        CLOSED,
-        DENIALCLAIMED
+        CLOSED
     }
 
     struct Loan {
         uint256 loanReqId;
         uint256 invoiceAmount;
         uint256 loanEligibility;
-        uint256 loanToAcquire;
+        uint256 loanAcquired;
         address loanRequestedIn;
+        uint256 currentPrincipal;
+        uint256 initialPrincipal;
+        uint256 interestRate;
+        uint expiresAt;
+        uint createdAt;
         address borrower;
+        address lender;
         uint256 nftTokenId;
         Status status;
     }
@@ -59,12 +64,7 @@ contract InvyFi is PluginClient, ReentrancyGuard, Pausable {
         uint256 lendingId;
         uint256 loanReqId;
         uint256 lendingAmount;
-        uint256 interestRate;
         uint256 earnings;
-        uint256 initialPrincipal;
-        uint256 currentPrincipal;
-        uint createdAt;
-        uint expiresAt;
         address lender;
         Status status;
         bool isLoanClaimedBack;
@@ -97,8 +97,10 @@ contract InvyFi is PluginClient, ReentrancyGuard, Pausable {
         lendingIds.increment();
     }
 
-    function transferContractOwnership(address _newOwneraddress) public {
-        require(msg.sender == owner, "Only owner can transfer ownership");
+    function transferContractOwnership(
+        address _newOwneraddress
+    ) public  {
+        require(msg.sender==owner,"Only owner can transfer ownership");
         _transferOwner(_newOwneraddress);
     }
 
@@ -133,8 +135,7 @@ contract InvyFi is PluginClient, ReentrancyGuard, Pausable {
         uint256 _tokenId
     ) public whenNotPaused returns (uint256) {
         /* create the lending offer */
-        require(whitelist[msg.sender] == true, "Not whitelisted");
-
+        require(whitelist[msg.sender]==true,"Not whitelisted");
         uint256 _reqid = requestIds.current();
         loanDetails[_reqid] = Loan(
             _reqid,
@@ -142,7 +143,13 @@ contract InvyFi is PluginClient, ReentrancyGuard, Pausable {
             _loanEligibility,
             _loanToAcquire,
             _loanRequestedIn,
+            0,
+            0,
+            0,
+            0,
+            0,
             msg.sender,
+            address(0),
             _tokenId,
             Status(0)
         );
@@ -160,15 +167,23 @@ contract InvyFi is PluginClient, ReentrancyGuard, Pausable {
         uint256 _daysToExpire,
         Assets _assets
     ) public payable whenNotPaused {
-        require(whitelist[msg.sender] == true, "Not whitelisted");
-        require(
-            loanDetails[_loanReqId].status == Status.INITIATED,
-            "Not a valid status"
-        );
+        require(whitelist[msg.sender]==true,"Not whitelisted");
         uint256 createdAt = block.timestamp;
         uint256 duration = ONE_DAY.mul(_daysToExpire);
         uint256 expiresAt = createdAt.add(duration);
         uint256 _lendingId = lendingIds.current();
+
+        //Updating Loan request details
+        loanDetails[_loanReqId].expiresAt = expiresAt;
+        loanDetails[_loanReqId].createdAt = createdAt;
+        loanDetails[_loanReqId].loanAcquired = _loanAmountOffered;
+        loanDetails[_loanReqId].initialPrincipal = _loanAmountOffered;
+        loanDetails[_loanReqId].currentPrincipal = _loanAmountOffered;
+        loanDetails[_loanReqId].interestRate = _interestRate;
+        loanDetails[_loanReqId].lender = msg.sender;
+
+        //Loan offered
+        loanDetails[_loanReqId].status = Status(1);
 
         if (_assets == Assets.PLI) {
             transferFundsToContract(_loanAmountOffered, keyMappings["PLI"]);
@@ -179,16 +194,13 @@ contract InvyFi is PluginClient, ReentrancyGuard, Pausable {
         if (_assets == Assets.USPLUS) {
             transferFundsToContract(_loanAmountOffered, keyMappings["USPLUS"]);
         }
-        updateLenderDetails(
-            _loanReqId,
-            _loanAmountOffered,
-            _lendingId,
-            _interestRate,
-            createdAt,
-            expiresAt
-        );
+        updateLenderDetails(_loanReqId, _loanAmountOffered, _lendingId);
 
-        emit LendingOffered(msg.sender, _loanAmountOffered, _lendingId);
+        emit LendingOffered(
+            msg.sender,
+            _loanAmountOffered,
+            _lendingId
+        );
     }
 
     //internal function for transferpayment
@@ -210,21 +222,13 @@ contract InvyFi is PluginClient, ReentrancyGuard, Pausable {
     function updateLenderDetails(
         uint256 _loanReqId,
         uint256 _loanAmountOffered,
-        uint256 _lendingid,
-        uint256 _interestRate,
-        uint256 createdAt,
-        uint256 expiresAt
+        uint256 _lendingid
     ) internal {
         lendingDetails[_lendingid] = Lending(
             _lendingid,
             _loanReqId,
             _loanAmountOffered,
-            _interestRate,
             0,
-            _loanAmountOffered,
-            _loanAmountOffered,
-            createdAt,
-            expiresAt,
             msg.sender,
             Status(1),
             false
@@ -260,13 +264,13 @@ contract InvyFi is PluginClient, ReentrancyGuard, Pausable {
 
     //function to accept or deny loan offer
     function acceptOrDenyOffer(
-        uint256 _lendingId,
+        uint256 _loanReqId,
         Status _status
     ) public payable whenNotPaused {
-        require(whitelist[msg.sender] == true, "Not whitelisted");
-        Lending memory l = lendingDetails[_lendingId];
+        require(whitelist[msg.sender]==true,"Not whitelisted");
+        Loan memory l = loanDetails[_loanReqId];
         require(
-            msg.sender == loanDetails[l.loanReqId].borrower,
+            msg.sender == l.borrower,
             "Only Borrower can accept or Deny the offer"
         );
         require(
@@ -274,17 +278,25 @@ contract InvyFi is PluginClient, ReentrancyGuard, Pausable {
             "Only Offered Loan can be accepted or denied"
         );
         //Set the loan
-        lendingDetails[_lendingId].status = Status(_status);
+        loanDetails[_loanReqId].status = Status(_status);
         string memory _flag = "";
         if (_status == Status.ACCEPTED) {
             transferFundstoBorrowerOrLender(
-                l.lendingAmount,
-                loanDetails[l.loanReqId].loanRequestedIn,
-                loanDetails[l.loanReqId].borrower
+                l.loanAcquired,
+                l.loanRequestedIn,
+                l.borrower
             );
-            loanDetails[l.loanReqId].status = Status(_status);
             _flag = "ACCEPTED";
         }
+        if (_status == Status.DENIED) {
+            transferFundstoBorrowerOrLender(
+                l.loanAcquired,
+                l.loanRequestedIn,
+                msg.sender
+            );
+            _flag = "DENIED";
+        }
+
         emit LoanAcceptOrDenyStatus(msg.sender, _flag);
     }
 
@@ -301,24 +313,25 @@ contract InvyFi is PluginClient, ReentrancyGuard, Pausable {
     function loanPayBack(
         uint256 _loanReqId,
         uint256 _amount,
-        Status _status,
-        uint256 _lendingId
+        Status _status
     ) public payable whenNotPaused {
-        require(whitelist[msg.sender] == true, "Not whitelisted");
+        require(whitelist[msg.sender]==true,"Not whitelisted");
         Loan memory l = loanDetails[_loanReqId];
         require(msg.sender == l.borrower, "Only Borrower can pay back");
         require(l.status == Status(2), "Only Accepted Loan can pay back");
         loanDetails[_loanReqId].status = Status(_status);
-        lendingDetails[_lendingId].status = Status(_status);
         transferFundsToContract(_amount, l.loanRequestedIn);
         emit LoanPaidBack(msg.sender, _loanReqId, _amount);
     }
 
     //function for claim the loan amount by issuer
     function claimLoan(uint256 _lendingId) public payable whenNotPaused {
-        require(whitelist[msg.sender] == true, "Not whitelisted");
+        require(whitelist[msg.sender]==true,"Not whitelisted");
         Lending memory l = lendingDetails[_lendingId];
-        require(msg.sender == l.lender, "Only lender can claim back");
+        require(
+            msg.sender == loanDetails[l.loanReqId].lender,
+            "Only lender can claim back"
+        );
         require(
             lendingDetails[_lendingId].isLoanClaimedBack == false,
             "Loan already claimed"
@@ -342,23 +355,25 @@ contract InvyFi is PluginClient, ReentrancyGuard, Pausable {
         );
     }
 
+
     //function for claim the loan amount by issuer
-    function claimBackSinceLoanNotAccepted(
-        uint256 _lendingId
-    ) public payable whenNotPaused {
-        require(whitelist[msg.sender] == true, "Not whitelisted");
+    function claimBackSinceLoanNotAccepted(uint256 _lendingId) public payable whenNotPaused {
+        require(whitelist[msg.sender]==true,"Not whitelisted");
         Lending memory l = lendingDetails[_lendingId];
-        require(msg.sender == l.lender, "Only lender can claim back");
+        require(
+            msg.sender == loanDetails[l.loanReqId].lender,
+            "Only lender can claim back"
+        );
         require(
             lendingDetails[_lendingId].isLoanClaimedBack == false,
             "Loan already claimed"
         );
-        // require(
-        //     loanDetails[l.loanReqId].status == Status(5),
-        //     "Only Denied Loan can be claimed back by Lender"
-        // );
+        require(
+            loanDetails[l.loanReqId].status == Status(5),
+            "Only Denied Loan can be claimed back by Lender"
+        );
 
-        lendingDetails[_lendingId].status = Status(8);
+        lendingDetails[_lendingId].status = Status(4);
         lendingDetails[_lendingId].isLoanClaimedBack = true;
         transferFundstoBorrowerOrLender(
             lendingDetails[_lendingId].lendingAmount,
@@ -379,10 +394,6 @@ contract InvyFi is PluginClient, ReentrancyGuard, Pausable {
     event LoanAcceptOrDenyStatus(address _borrower, string _status);
     event LoanPaidBack(address _borrower, uint256 _loanreqid, uint256 _amount);
     event LoanClaimed(address _lender, uint256 _loanreqid, uint256 _amount);
-    event LoanClaimedSinceNotAccepted(
-        address _lender,
-        uint256 _loanreqid,
-        uint256 _amount
-    );
+    event LoanClaimedSinceNotAccepted(address _lender, uint256 _loanreqid, uint256 _amount);
     event WhiteListed(address _to, bool _flag);
 }
